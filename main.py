@@ -37,11 +37,15 @@ class Safe(BaseModel):
     min_humid: int
     max_humid: int
 
+class Password(BaseModel):
+    safe_id: int
+    safe_pin: str
+
 class Update(BaseModel):
     safe_id: int
-    safe_name: str
+    #safe_name: str
     safe_pin: str
-    connected: bool
+    lock: bool
     safe_system_available: bool
 
 class alerts(BaseModel):
@@ -97,21 +101,31 @@ def new_safe(safe: Safe):
         "humid_alert": False,
         "temp_alert": False,
         "ultrasonic_alert": False,
+        "locked": False
     }
     collection.insert_one(new_safe)
     return {"detail": "add new safe success"}
 
+@app.put("/password")
+def ch_password(password: Password):
+    safe_id = password.safe_id
+    safe_pin = password.safe_pin
+    safe = collection.find_one({"safe_id": safe_id})
+    if safe is None or not check_password(safe_pin,safe["safe_pin"],safe["salt"]):
+        raise HTTPException(status_code=400, detail="safe_id or safe_pin is incorrect")
+    return {"detail": "access success"}
+
 @app.put("/safe_update")
 def safe_update(update: Update):
     safe_id = update.safe_id
-    safe_name = update.safe_name
+    #safe_name = update.safe_name
     safe_pin = update.safe_pin
-    connected = update.connected
+    lock = update.lock
     safe_system_available = update.safe_system_available
     safe = collection.find_one({"safe_id": safe_id})
-    if safe is None or not check_password(safe_pin,safe["safe_pin"],safe["salt"]) or safe["safe_name"] != safe_name:
-        raise HTTPException(status_code=400, detail="safe_id or safe_pin or safe_name is incorrect")
-    collection.update_one({"safe_id": safe_id}, {"$set": {"connected": connected, "safe_system_available": safe_system_available}})
+    #if safe is None or not check_password(safe_pin,safe["safe_pin"],safe["salt"]): #or safe["safe_name"] != safe_name:
+    #    raise HTTPException(status_code=400, detail="safe_id or safe_pin is incorrect")
+    collection.update_one({"safe_id": safe_id}, {"$set": {"locked": lock, "safe_system_available": safe_system_available}})
     return {"detail": "update success"}
     
 @app.get("/status/{safe_id}")
