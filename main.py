@@ -42,6 +42,13 @@ class Update(BaseModel):
     connected: bool
     safe_system_available: bool
 
+class alerts(BaseModel):
+    safe_id : int 
+    flame_alert : bool 
+    humid_alert : bool 
+    temp_alert : bool 
+    ultrasonic_alert : bool 
+
 def hash_password(password):
     salt = uuid.uuid4().hex
     ph = (password + salt).encode("utf-8")
@@ -104,3 +111,15 @@ def safe_update(update: Update):
         raise HTTPException(status_code=400, detail="safe_id or safe_pin or safe_name is incorrect")
     collection.update_one({"safe_id": safe_id}, {"$set": {"connected": connected, "safe_system_available": safe_system_available}})
     return {"detail": "update success"}
+    
+@app.get("/status/{safe_id}")
+def get_status(safe_id:int):
+    status = collection.find_one({"safe_id":safe_id},{"_id":0})
+    return status 
+
+@app.put("/alert")
+def put_alert(ale : alerts):
+    filter = {"safe_id":ale.safe_id}
+    newvalues = {"$set" :{"flame_alert":ale.flame_alert,"humid_alert":ale.humid_alert,"temp_alert":ale.temp_alert,"ultrasonic_alert":ale.ultrasonic_alert}}
+    a = collection.update_one(filter,newvalues)
+    return 
