@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 from fastapi.middleware.cors import CORSMiddleware
 import hashlib, uuid
 import os
+import requests
 load_dotenv(".env")
 
 user = os.getenv("user")
@@ -13,6 +14,7 @@ password = os.getenv("password")
 client = MongoClient(f"mongodb://{user}:{password}@mongo.exceed19.online:8443/?authMechanism=DEFAULT")
 db = client["exceed04"]
 collection = db["Safe"]
+token = os.getenv("token")
 
 app = FastAPI()
 
@@ -41,6 +43,13 @@ class Update(BaseModel):
     safe_pin: str
     connected: bool
     safe_system_available: bool
+
+class alerts(BaseModel):
+    safe_id : int 
+    flame_alert : int 
+    humid_alert : int 
+    temp_alert : int 
+    ultrasonic_alert : int 
 
 def hash_password(password):
     salt = uuid.uuid4().hex
@@ -104,3 +113,31 @@ def safe_update(update: Update):
         raise HTTPException(status_code=400, detail="safe_id or safe_pin or safe_name is incorrect")
     collection.update_one({"safe_id": safe_id}, {"$set": {"connected": connected, "safe_system_available": safe_system_available}})
     return {"detail": "update success"}
+    
+@app.get("/status/{safe_id}")
+def get_status(safe_id:int):
+    status = collection.find_one({"safe_id":safe_id},{"_id":0})
+    return status 
+
+@app.put("/alert")
+def put_alert(ale : alerts):
+    filter = {"safe_id":ale.safe_id}
+    newvalues = {"$set" :{"flame_alert":bool(ale.flame_alert),"humid_alert":bool(ale.humid_alert),"temp_alert":bool(ale.temp_alert),"ultrasonic_alert":bool(ale.ultrasonic_alert)}}
+    collection.update_one(filter,newvalues)
+    url = 'https://notify-api.line.me/api/notify'
+    headers = {
+        'content-type':
+        'application/x-www-form-urlencoded',
+        'Authorization':'Bearer '+token
+    }
+    msg = "Alert from Safe "+str(ale.safe_id)+"\n"
+    if ale.flame_alert == 1:
+        msg += "Flame Alert\n"
+    if ale.humid_alert == 1:
+        msg += "Humid Alert\n"
+    if ale.temp_alert == 1:
+        msg += "Temp Alert\n"
+    if ale.ultrasonic_alert == 1:
+        msg += "Ultrasonic Alert\n"
+    r = requests.post(url, headers=headers , data = {'message':msg})
+    return {"detail": "alert success"}
